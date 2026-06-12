@@ -56,53 +56,85 @@ pytest -m live                           # live LLM smoke test (uses your GITHUB
 
 ---
 
-## 5. Provision Azure (for the full pipeline) — optional
+## 5. Deploy to Azure (student subscription)
 
 The full `POST /audit_contract` flow needs Azure SQL, AI Search, Blob, and (optionally)
-Key Vault. Everything is scripted under `infra/`.
+Key Vault + App Service. Everything is scripted under `infra/`.
 
-### 5a. Prerequisites
-- Azure CLI (`az login`, `az account set --subscription <id>`) and `az bicep install`.
-- **Set a $20 budget alert** in Azure Cost Management before deploying.
+> **Use Azure Cloud Shell** (the `>_` icon at https://portal.azure.com). It runs in the
+> browser with `az`, `bicep`, `sqlcmd`, `git`, and `python` preinstalled — so you avoid
+> installing anything locally (handy here, where downloads are restricted). You're already
+> logged in inside Cloud Shell.
+>
+> **Heads-up — ODBC driver:** `pyodbc` needs *ODBC Driver 18 for SQL Server*. It's present
+> on the App Service Linux image, so the recommended target is **deploying the app to App
+> Service** rather than running it on a machine that lacks the driver.
 
-### 5b. Deploy infrastructure
+### 5a. Before you start
+- Set a **$20 budget alert** in Azure Cost Management.
+- In Cloud Shell, get the code: `git clone https://github.com/ChaitanyaChilukuri663/healthcare-contract-auditor && cd healthcare-contract-auditor`
+
+### 5b. Validate + deploy the infrastructure
 ```bash
+# Validate the Bicep first (catches template errors before anything is created):
+az bicep build --file infra/bicep/main.bicep
+
+# Deploy (free/cheapest tiers). See infra/bicep/README.md for what's created.
 export SQL_ADMIN_PASSWORD='<a-strong-password>'
-cd infra && bash deploy.sh
+cd infra && bash deploy.sh && cd ..
 ```
-Creates the resource group and all resources (free/cheapest tiers) and prints endpoints.
-See `infra/bicep/README.md` for what's deployed and the free-tier caps.
+Note the printed outputs: SQL server FQDN, search endpoint, storage account, web app name,
+Key Vault URI.
 
-### 5c. Create the database schemas
+### 5c. Create schemas + seed (driver-free, via sqlcmd)
 ```bash
-sqlcmd -S <server>.database.windows.net -d hca -U <admin> -P "$SQL_ADMIN_PASSWORD" -i db/schema_facets_sim.sql
-sqlcmd -S <server>.database.windows.net -d hca -U <admin> -P "$SQL_ADMIN_PASSWORD" -i db/schema_app_config.sql
+S=<sqlServerFqdn>; U=<sqlAdmin>; P="$SQL_ADMIN_PASSWORD"
+sqlcmd -S $S -d hca -U $U -P "$P" -i db/schema_facets_sim.sql
+sqlcmd -S $S -d hca -U $U -P "$P" -i db/schema_app_config.sql
+sqlcmd -S $S -d hca -U $U -P "$P" -i db/seed_data.sql      # reference data + sample MPFS
 ```
+`db/seed_data.sql` needs no Python/pyodbc. (`db/seed_mpfs.py` / `db/seed_reference.py` do the
+same via Python if you prefer.)
 
-### 5d. Seed data
-Fill the `AZURE_SQL_*` values in `.env`, then (venv activated):
-```powershell
-python -m db.seed_mpfs        # CMS MPFS rows from data/mpfs_2025.csv
-python -m db.seed_reference   # provider agreements, benchmarks, prompt registry
-```
-
-### 5e. Ingest the sample contracts
-Fill `AZURE_SEARCH_*` and `AZURE_BLOB_*` in `.env`. The synthetic PDFs are in
-`data/contracts/`. `document_extraction.pdf_ingest.PdfIngestor.ingest(...)` uploads to Blob,
-embeds, and indexes in AI Search.
-
-### 5f. Store secrets in Key Vault (prod)
-App Service resolves Key Vault references into the environment (wired by the Bicep). E.g.:
+### 5d. Store secrets in Key Vault
+The Bicep wires App Service settings to Key Vault references, so populate the vault:
 ```bash
-az keyvault secret set --vault-name <vault> --name GITHUB-TOKEN --value '<token>'
+V=<keyVaultName>
+az keyvault secret set --vault-name $V --name GITHUB-TOKEN --value '<your_github_token>'
+az keyvault secret set --vault-name $V --name AZURE-SEARCH-KEY --value '<search_admin_key>'
+az keyvault secret set --vault-name $V --name AZURE-SQL-CONNECTION-STRING --value '<odbc_conn_str>'
+az keyvault secret set --vault-name $V --name AZURE-BLOB-CONNECTION-STRING --value '<blob_conn_str>'
 ```
-(Key Vault secret names use dashes; app settings use underscores — see `infra/bicep/README.md`.)
+(Key Vault names use dashes; app settings use underscores — see `infra/bicep/README.md`.)
+
+### 5e. Deploy the app code to App Service
+```bash
+az webapp up --name <webAppName> --runtime "PYTHON:3.12" --sku F1
+# or configure GitHub deployment from the repo in the Portal (Deployment Center).
+```
+Then open `https://<webAppName>.azurewebsites.net/health`.
+
+### 5f. Ingest the sample contracts
+Run from a place that has the app deps + ODBC Driver 18 (App Service SSH console, or your
+laptop once Driver 18 is installed), with the `AZURE_*` env vars set:
+```bash
+python -m document_extraction.ingest_cli --demo
+```
+This uploads the 3 synthetic PDFs to Blob, embeds + indexes them in AI Search, and records
+them in `meta_index`. After that, `POST /audit_contract` returns a full report:
+```bash
+curl -X POST https://<webAppName>.azurewebsites.net/audit_contract \
+  -H "Content-Type: application/json" \
+  -d '{"provider_npi":"1234567890","state":"TX","lob":"Medicare","contract_id":"C-TX-001"}'
+# Provider A -> PASS ; Provider B (1987654321 / NY / Medicaid / C-NY-001) -> FAIL with codes
+```
 
 ---
 
-## What's verified vs. needs a live Azure run
+## What's verified vs. needs your live Azure run
 
-- ✅ Verified locally: lint (ruff), format, types (pyright), 43 unit tests, the app boots
-  and serves `/health`, and the synthetic PDFs parse.
-- ⏳ Needs your token + an Azure subscription: the live LLM smoke test, AI Search indexing,
-  Blob upload, Azure SQL queries, and a full `POST /audit_contract` run.
+- ✅ Verified locally: lint (ruff), format, types (pyright), 43 unit tests, app boots +
+  `/health`, synthetic PDFs parse.
+- ⏳ You verify on Azure: `az bicep build` + deploy, the live LLM call, AI Search/Blob/SQL,
+  ingestion, and an end-to-end `POST /audit_contract`. The Bicep hasn't been compiled yet —
+  run `az bicep build` first (5b) and share any error; it's a quick fix.
