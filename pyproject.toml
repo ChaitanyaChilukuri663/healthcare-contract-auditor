@@ -1,0 +1,83 @@
+[project]
+name = "healthcare-contract-auditor"
+version = "0.1.0"
+description = "AI-powered healthcare contract auditing API: RAG extraction proposes, a deterministic SQL rules engine disposes."
+readme = "README.md"
+# Project targets Python 3.12 (CLAUDE.md hard rule). The dev machine's corporate
+# proxy blocks uv's managed-Python download and group policy blocks winget, so the
+# runtime here is the locally installed 3.13.x. Language target stays 3.12 (ruff +
+# pyright below). Swap to a real 3.12 interpreter when off the proxied network.
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "openai>=1.40",
+    "langchain>=0.3",
+    "langchain-openai>=0.2",
+    "python-dotenv>=1",
+    "httpx>=0.27",
+    # Document extraction
+    "pypdf>=4.0",
+    "tiktoken>=0.7",
+    # Azure services
+    "azure-search-documents>=11.5",
+    "azure-storage-blob>=12.20",
+    "azure-identity>=1.17",
+    "azure-keyvault-secrets>=4.8",
+    # Azure SQL (async)
+    "aioodbc>=0.5",
+    "pyodbc>=5.1",
+    # Data processing / matching
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "rapidfuzz>=3.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-mock>=3.14",
+    "ruff>=0.6",
+    # The `nodejs` extra ships Node.js as a PyPI wheel. Without it, pyright tries to
+    # download Node from nodejs.org on first run, which the corporate proxy blocks.
+    "pyright[nodejs]>=1.1.380",
+    # Generates the synthetic provider-agreement PDFs under data/contracts/.
+    "reportlab>=4.2",
+]
+
+[tool.uv]
+# This machine sits behind a TLS-intercepting corporate proxy (Zscaler). uv's
+# bundled rustls store does not trust the proxy's root CA, so all network calls
+# must use the OS certificate store (which does trust it). `system-certs = true` is
+# the persistent equivalent of the `--system-certs` flag.
+system-certs = true
+# Never attempt to download a managed CPython build — that download is blocked by
+# the proxy. Always use an already-installed interpreter.
+python-preference = "only-system"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "standard"
+include = ["agents", "document_extraction", "facets", "db", "tests", "app.py", "models.py", "config.py"]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+# Live tests hit real provider APIs and are skipped by default. Opt in with:
+#   uv run pytest -m live
+addopts = "-m 'not live'"
+markers = [
+    "live: test calls a real LLM provider API (needs network + credentials); skipped unless -m live",
+]

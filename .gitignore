@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual environment (uv-managed)
+.venv/
+
+# Secrets — never commit real credentials
+.env
+*.env
+!.env.example
+
+# Data: the synthetic samples + sample MPFS CSV ARE committed (safe demo data).
+# Do NOT add real/PHI provider contracts to the repo.
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/

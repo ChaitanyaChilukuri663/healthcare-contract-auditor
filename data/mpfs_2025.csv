@@ -1,0 +1,16 @@
+cpt_code,locality,description,conversion_factor,rvu,amount
+97110,0000000,Therapeutic exercises,32.74,0.85,27.83
+97140,0000000,Manual therapy techniques,32.74,0.81,26.52
+97530,0000000,Therapeutic activities,32.74,0.92,30.12
+97112,0000000,Neuromuscular reeducation,32.74,0.88,28.81
+97116,0000000,Gait training therapy,32.74,0.78,25.54
+92507,0000000,Speech/hearing therapy individual,32.74,1.30,42.56
+92526,0000000,Oral function therapy,32.74,1.18,38.63
+99213,0000000,Office/outpatient visit est,32.74,1.30,42.56
+99214,0000000,Office/outpatient visit est,32.74,1.92,62.86
+99203,0000000,Office/outpatient visit new,32.74,1.60,52.38
+99204,0000000,Office/outpatient visit new,32.74,2.60,85.12
+20610,0000000,Drain/inject joint/bursa,32.74,1.97,64.50
+73610,0000000,X-ray exam of ankle,32.74,0.59,19.32
+20550,0000000,Inj tendon sheath/ligament,32.74,0.86,28.16
+G0283,0000000,Electrical stimulation therapy,32.74,0.55,18.01
