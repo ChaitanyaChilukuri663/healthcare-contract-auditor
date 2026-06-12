@@ -57,13 +57,12 @@ Azure Key Vault · Bicep IaC · `uv` · `ruff` · `pyright` · `pytest`.
 ## Quick start
 
 ```powershell
-# uv is not on PATH on this machine — use the full path:
-$uv = "$env:LOCALAPPDATA\Programs\Python\Python313\Scripts\uv.exe"
-
-& $uv sync --directory "C:\RAG"
-Copy-Item .env.example .env          # then add your GITHUB_TOKEN
-& $uv run --directory "C:\RAG" uvicorn app:app --reload
-curl http://127.0.0.1:8000/health    # {"status":"ok","provider":"github","version":"0.1.0"}
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
+Copy-Item .env.example .env           # then add your GITHUB_TOKEN
+uvicorn app:app --reload
+curl http://127.0.0.1:8000/health     # {"status":"ok","provider":"github","version":"0.1.0"}
 ```
 
 See **[SETUP.md](SETUP.md)** for the full credentials + Azure provisioning walkthrough.
@@ -71,11 +70,12 @@ See **[SETUP.md](SETUP.md)** for the full credentials + Azure provisioning walkt
 ## Development
 
 ```powershell
-& $uv run --directory "C:\RAG" ruff check .
-& $uv run --directory "C:\RAG" ruff format --check .
-& $uv run --directory "C:\RAG" pyright
-& $uv run --directory "C:\RAG" pytest          # 43 unit tests (live tests skipped)
-& $uv run --directory "C:\RAG" pytest -m live  # opt-in live LLM smoke test (needs GITHUB_TOKEN)
+pip install -r requirements-dev.txt   # ruff, pyright, pytest (one-time)
+ruff check .                          # lint
+ruff format --check .                 # formatting
+pyright                               # type-check
+pytest                                # 43 unit tests (live tests skipped)
+pytest -m live                        # opt-in live LLM smoke test (needs GITHUB_TOKEN)
 ```
 
 ## Project layout
@@ -120,11 +120,9 @@ tests/                     pytest mirrors the source tree
 | Synthetic PDFs parse (pypdf)                        | ✅ pass |
 | Live LLM call, AI Search, Blob, Azure SQL, deploy  | ⏳ needs your token + Azure subscription (see SETUP.md) |
 
-## Environment notes (this machine)
+## Environment notes
 
-- **Python**: targets **3.12** (ruff + pyright pinned to `py312`); runs on the locally
-  installed **3.13.x** because the corporate proxy blocks uv's managed-Python download and
-  group policy blocks winget. `requires-python = ">=3.12"`.
-- **Corporate proxy (Zscaler)**: `uv` is configured with `system-certs = true` and
-  `python-preference = "only-system"`; the LLM HTTP client verifies against the OS trust
-  store; `pyright[nodejs]` ships Node as a PyPI wheel (nodejs.org is blocked).
+- **Python**: targets **3.12** (ruff + pyright pinned to `py312`); runs fine on 3.12 or 3.13.
+- **Behind a corporate proxy?** `pip` works as-is. The LLM HTTP client verifies against the
+  OS trust store, and `pyright[nodejs]` ships Node as a PyPI wheel (so pyright never needs to
+  download Node from nodejs.org).
