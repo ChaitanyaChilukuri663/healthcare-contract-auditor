@@ -136,7 +136,7 @@ Then in the Streamlit UI pick **Provider A → PASS** or **Provider B → FAIL w
 
 ## What's verified vs. needs your live Azure run
 
-- ✅ Verified locally: `ruff` lint/format, **43 unit tests**, the app boots + `/health`, the
+- ✅ Verified locally: `ruff` lint/format, **52 unit tests**, the app boots + `/health`, the
   Streamlit UI imports, and the synthetic PDFs parse.
 - ⏳ You verify on Azure: resource creation, the live LLM call, AI Search/Blob/SQL, the Docker
   build + App Service deploy, ingestion, and an end-to-end audit. Paste any error and I'll fix it.

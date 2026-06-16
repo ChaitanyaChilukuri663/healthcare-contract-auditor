@@ -109,9 +109,23 @@ See **[SETUP.md](SETUP.md)** for the full credentials + Azure provisioning walkt
 pip install -r requirements-dev.txt   # ruff, pytest (one-time)
 ruff check .                          # lint
 ruff format --check .                 # formatting
-pytest                                # 43 unit tests (live tests skipped)
+pytest                                # 52 unit tests (live tests skipped)
 pytest -m live                        # opt-in live LLM smoke test (needs GITHUB_TOKEN)
 ```
+
+## Evaluation — how accurate is the extraction?
+
+The LLM *proposes* values, so its extraction accuracy is measured, not assumed. A labeled
+set of synthetic contract excerpts (`evals/dataset.jsonl`) is run through the real extraction
+and scored per field, with precision/recall for the binary lesser-of check:
+
+```powershell
+python -m evals.run_eval        # needs GITHUB_TOKEN; writes evals/results.md
+```
+
+This catches exactly the kind of reliability gap that motivates the design: **the AI
+proposes, but the deterministic SQL rules engine is the source of truth.** See
+[evals/results.md](evals/results.md) for the latest scores.
 
 ## Project layout
 
@@ -141,6 +155,8 @@ db/
   seed_mpfs.py             Load data/mpfs_2025.csv into facets_sim.mpfs_fee
   seed_reference.py        Seed agreements, benchmarks, prompt registry (Python)
   seed_data.sql            Same seed via plain sqlcmd (no Python/driver needed)
+reporting.py               Portfolio aggregation (dashboard metrics)
+evals/                     Accuracy eval — labeled dataset + metrics + runner
 Dockerfile                 Container image (bundles ODBC Driver 18) for Azure App Service
 data/                      Synthetic contracts (PDF) + sample MPFS CSV
 tests/                     pytest mirrors the source tree
@@ -151,9 +167,10 @@ tests/                     pytest mirrors the source tree
 | Check                                              | Status |
 | -------------------------------------------------- | ------ |
 | `ruff check` / `ruff format --check`               | ✅ pass |
-| `pytest` (43 unit tests, mocked Azure/LLM)         | ✅ pass |
+| `pytest` (52 unit tests, mocked Azure/LLM)         | ✅ pass |
 | App boots, `/health` returns the right shape       | ✅ pass |
 | Streamlit UI imports, synthetic PDFs parse         | ✅ pass |
+| Extraction-accuracy eval (`python -m evals.run_eval`) | ▶ run it to generate `evals/results.md` |
 | Live LLM call, AI Search, Blob, Azure SQL, deploy  | ⏳ needs your token + Azure subscription (see SETUP.md) |
 
 ## Environment notes
