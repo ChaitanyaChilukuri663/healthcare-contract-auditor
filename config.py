@@ -1,14 +1,11 @@
-"""Application configuration: env loading, typed settings, secret resolution, version.
+"""Application configuration: env loading, typed settings, and version lookup.
 
-In production, App Service injects Key Vault references (set up by infra/bicep) directly
-into the process environment, so reading settings from the environment works in both dev
-and prod. :func:`get_secret` additionally supports a direct Key Vault lookup when only
-``AZURE_KEYVAULT_URI`` is configured.
+Secrets come from the environment (a local ``.env`` in dev; App Service application
+settings in prod).
 """
 
 import functools
 import logging
-import os
 import tomllib
 from pathlib import Path
 
@@ -104,16 +101,10 @@ class Settings(BaseSettings):
     )
     azure_sql_server: str | None = Field(default=None, description="SQL server FQDN.")
     azure_sql_database: str | None = Field(default=None, description="SQL database name.")
-    azure_sql_username: str | None = Field(default=None, description="SQL username (dev).")
-    azure_sql_password: str | None = Field(default=None, description="SQL password (dev).")
+    azure_sql_username: str | None = Field(default=None, description="SQL username.")
+    azure_sql_password: str | None = Field(default=None, description="SQL password.")
     azure_sql_driver: str = Field(
         default="{ODBC Driver 18 for SQL Server}", description="ODBC driver name."
-    )
-
-    # --- Key Vault / identity ---
-    azure_keyvault_uri: str | None = Field(default=None, description="Key Vault URI (prod).")
-    use_managed_identity: bool = Field(
-        default=False, description="Use DefaultAzureCredential instead of keys/conn-strings."
     )
 
     def sql_connection_string(self) -> str:
@@ -139,38 +130,3 @@ def get_settings() -> Settings:
     """Return cached application settings, loading ``.env`` first."""
     load_env()
     return Settings()
-
-
-@functools.cache
-def _keyvault_secret_client() -> object | None:
-    """Return a cached Key Vault SecretClient, or None if Key Vault is not configured."""
-    settings = get_settings()
-    if not settings.azure_keyvault_uri:
-        return None
-    from azure.identity import DefaultAzureCredential
-    from azure.keyvault.secrets import SecretClient
-
-    return SecretClient(vault_url=settings.azure_keyvault_uri, credential=DefaultAzureCredential())
-
-
-def get_secret(name: str, default: str | None = None) -> str | None:
-    """Resolve a secret: process environment first, then Key Vault, then ``default``.
-
-    Env-first matches App Service, which resolves Key Vault references into the
-    environment. The dashed Key Vault naming convention is derived from ``name``.
-    """
-    value = os.environ.get(name)
-    if value:
-        return value
-
-    client = _keyvault_secret_client()
-    if client is not None:
-        from azure.core.exceptions import ResourceNotFoundError
-
-        secret_name = name.lower().replace("_", "-")
-        try:
-            return client.get_secret(secret_name).value  # type: ignore[attr-defined]
-        except ResourceNotFoundError:
-            logger.debug("Secret %r not found in Key Vault", secret_name)
-
-    return default

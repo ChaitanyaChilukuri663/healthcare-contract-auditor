@@ -50,9 +50,9 @@ var — no code changes:
 
 ## Tech stack
 
-Python 3.12 target, FastAPI, Uvicorn · LangChain-style RAG · Azure AI Search (vectors) ·
-Azure SQL (`facets_sim` + `app_config` schemas, async via `aioodbc`) · Azure Blob ·
-Azure Key Vault · Bicep IaC · `uv` · `ruff` · `pyright` · `pytest`.
+Python 3.12 target, FastAPI, Uvicorn · **Streamlit** (demo UI) · LangChain-style RAG ·
+Azure AI Search (vectors) · Azure SQL (`facets_sim` + `app_config` schemas, async via
+`aioodbc`) · Azure Blob · **Docker + Azure App Service** · `ruff` · `pytest`.
 
 ## Quick start
 
@@ -61,8 +61,8 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1          # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
 Copy-Item .env.example .env           # then add your GITHUB_TOKEN
-uvicorn app:app --reload
-curl http://127.0.0.1:8000/health     # {"status":"ok","provider":"github","version":"0.1.0"}
+uvicorn app:app --reload              # REST API:  http://127.0.0.1:8000  (/health, /docs)
+streamlit run streamlit_app.py        # or the visual demo UI
 ```
 
 See **[SETUP.md](SETUP.md)** for the full credentials + Azure provisioning walkthrough.
@@ -70,10 +70,9 @@ See **[SETUP.md](SETUP.md)** for the full credentials + Azure provisioning walkt
 ## Development
 
 ```powershell
-pip install -r requirements-dev.txt   # ruff, pyright, pytest (one-time)
+pip install -r requirements-dev.txt   # ruff, pytest (one-time)
 ruff check .                          # lint
 ruff format --check .                 # formatting
-pyright                               # type-check
 pytest                                # 43 unit tests (live tests skipped)
 pytest -m live                        # opt-in live LLM smoke test (needs GITHUB_TOKEN)
 ```
@@ -82,6 +81,7 @@ pytest -m live                        # opt-in live LLM smoke test (needs GITHUB
 
 ```
 app.py                     FastAPI routes + lifespan (builds the pipeline)
+streamlit_app.py           Streamlit demo UI (runs the pipeline, shows the report)
 pipeline.py                5-stage orchestration (AuditPipeline)
 models.py                  Pydantic v2 schemas (extraction, timeline, report, error codes)
 config.py                  Settings (pydantic-settings), version, secret resolution
@@ -103,8 +103,9 @@ db/
   schema_facets_sim.sql    CMS/Facets ground-truth DDL
   schema_app_config.sql    App-state DDL (cache, prompts, audit runs)
   seed_mpfs.py             Load data/mpfs_2025.csv into facets_sim.mpfs_fee
-  seed_reference.py        Seed agreements, benchmarks, prompt registry
-infra/bicep/               Azure IaC (SQL, AI Search, Blob, Key Vault, App Service F1)
+  seed_reference.py        Seed agreements, benchmarks, prompt registry (Python)
+  seed_data.sql            Same seed via plain sqlcmd (no Python/driver needed)
+Dockerfile                 Container image (bundles ODBC Driver 18) for Azure App Service
 data/                      Synthetic contracts (PDF) + sample MPFS CSV
 tests/                     pytest mirrors the source tree
 ```
@@ -114,15 +115,13 @@ tests/                     pytest mirrors the source tree
 | Check                                              | Status |
 | -------------------------------------------------- | ------ |
 | `ruff check` / `ruff format --check`               | ✅ pass |
-| `pyright` (standard mode, full project)            | ✅ pass |
 | `pytest` (43 unit tests, mocked Azure/LLM)         | ✅ pass |
 | App boots, `/health` returns the right shape       | ✅ pass |
-| Synthetic PDFs parse (pypdf)                        | ✅ pass |
+| Streamlit UI imports, synthetic PDFs parse         | ✅ pass |
 | Live LLM call, AI Search, Blob, Azure SQL, deploy  | ⏳ needs your token + Azure subscription (see SETUP.md) |
 
 ## Environment notes
 
-- **Python**: targets **3.12** (ruff + pyright pinned to `py312`); runs fine on 3.12 or 3.13.
-- **Behind a corporate proxy?** `pip` works as-is. The LLM HTTP client verifies against the
-  OS trust store, and `pyright[nodejs]` ships Node as a PyPI wheel (so pyright never needs to
-  download Node from nodejs.org).
+- **Python**: targets **3.12** (ruff pinned to `py312`); runs fine on 3.12 or 3.13.
+- **Behind a corporate proxy?** `pip` works as-is; the LLM HTTP client verifies against the
+  OS trust store.

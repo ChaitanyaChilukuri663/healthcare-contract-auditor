@@ -24,7 +24,7 @@ dependencies = [
     "azure-search-documents>=11.5",
     "azure-storage-blob>=12.20",
     "azure-identity>=1.17",
-    "azure-keyvault-secrets>=4.8",
+    "streamlit>=1.40",
     # Azure SQL (async)
     "aioodbc>=0.5",
     "pyodbc>=5.1",
@@ -42,16 +42,6 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]
-
-[tool.pyright]
-pythonVersion = "3.12"
-typeCheckingMode = "standard"
-include = [
-    "agents", "document_extraction", "facets", "db", "tests",
-    "app.py", "pipeline.py", "models.py", "config.py",
-]
-venvPath = "."
-venv = ".venv"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
