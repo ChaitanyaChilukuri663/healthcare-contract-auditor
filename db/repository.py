@@ -37,6 +37,16 @@ class ProviderAgreementRepository:
         )
         return _to_agreement(row) if row else None
 
+    async def list_all(self) -> list[ProviderAgreement]:
+        rows = await self._db.fetch_all(
+            """
+            SELECT provider_npi, contract_id, state, lob, effective_date, terminate_date
+            FROM facets_sim.provider_agreement
+            ORDER BY provider_npi, contract_id
+            """
+        )
+        return [_to_agreement(row) for row in rows]
+
 
 class DocumentRepository:
     """app_config.meta_index."""

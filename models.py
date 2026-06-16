@@ -349,3 +349,35 @@ class AuditResponse(BaseModel):
     status: AuditOutcome = Field(description="Overall outcome (pass | fail | error).")
     report: AuditReport | None = Field(default=None, description="Full report (None on error).")
     message: str | None = Field(default=None, description="Error/diagnostic message, if any.")
+
+
+# --------------------------------------------------------------------------- #
+# Portfolio dashboard (batch audit aggregation)                               #
+# --------------------------------------------------------------------------- #
+
+
+class FlaggedItem(BaseModel):
+    """A contract flagged for human review (e.g. uncertain/missing extraction)."""
+
+    contract_id: str = Field(description="Flagged agreement id.")
+    provider_npi: str = Field(description="Provider NPI.")
+    reason: str = Field(description="Why it needs review.")
+
+
+class PortfolioSummary(BaseModel):
+    """Aggregate compliance view across many audited contracts."""
+
+    total_contracts: int = Field(description="Number of contracts audited.")
+    passed: int = Field(description="Count with outcome PASS.")
+    failed: int = Field(description="Count with outcome FAIL.")
+    errored: int = Field(description="Count with outcome ERROR.")
+    compliance_rate: float = Field(description="Fraction passed (0-1).")
+    findings_by_code: dict[str, int] = Field(
+        default_factory=dict, description="Count of failed checks per error code."
+    )
+    estimated_exposure_usd: float = Field(
+        description="Illustrative $ exposure from non-compliant contracts."
+    )
+    flagged_for_review: list[FlaggedItem] = Field(
+        default_factory=list, description="Contracts needing a human look."
+    )

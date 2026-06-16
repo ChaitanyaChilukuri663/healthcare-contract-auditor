@@ -11,14 +11,31 @@ so there is no hallucination risk on regulated dollar figures.
 > Portfolio project. Built from public CMS data and a generic architectural pattern.
 > Sample contracts under `data/contracts/` are **synthetic** and clearly labelled.
 
+## The business problem
+
+Healthcare payer operations teams manually read 30–50 page provider agreements and
+cross-check internal fee tables to confirm negotiated rates and filing rules match
+regulatory benchmarks — typically **30–60 minutes per contract** and error-prone at scale.
+This service automates that audit: a coded **PASS/FAIL** report in seconds, with every
+finding traced to the exact contract clause and the benchmark it was checked against.
+
+- **Who it's for:** payer ops / provider-contracting / compliance teams.
+- **What it produces:** structured findings with error codes (`TF001`, `FS002`, `LL003`, …)
+  and a verifiable audit trail — safe to use on regulated financial figures.
+- **Portfolio dashboard:** audit a whole book of contracts at once → **% compliant**, top
+  violation types, **estimated $ exposure**, and which contracts need human review.
+
 ## Demo
 
-> 📸 _Add a screenshot or GIF of the Streamlit UI here for your portfolio/LinkedIn — save it
-> as `docs/demo.png`, then uncomment the next line._
-<!-- ![Streamlit demo — pick a provider, get a PASS/FAIL report](docs/demo.png) -->
+Two views: a **single-contract audit** and a **portfolio dashboard**.
+
+> 📸 _Add screenshots/GIFs for your portfolio/LinkedIn — save as `docs/demo.png` (single
+> audit) and `docs/dashboard.png` (dashboard), then uncomment the lines below._
+<!-- ![Single audit — pick a provider, get a PASS/FAIL report](docs/demo.png) -->
+<!-- ![Portfolio dashboard — compliance rate, violations, $ exposure](docs/dashboard.png) -->
 
 **Deployed as one Docker container on Azure App Service** — Streamlit is the UI framework,
-App Service is the host (it's a single app, not two). Full steps in [SETUP.md](SETUP.md) §5.
+App Service is the host (a single app, not two). Full steps in [SETUP.md](SETUP.md) §5.
 
 ## Try it locally (3 steps)
 
@@ -33,19 +50,18 @@ streamlit run streamlit_app.py
 
 ## Architecture — a 5-stage pipeline behind `POST /audit_contract`
 
-```
-            ┌─────────── agents/llm_client.py (provider abstraction) ───────────┐
-            │     github · azure · groq   —   one OpenAI-compatible interface    │
-            └───────────────────────────────────────────────────────────────────┘
-                              ▲                         ▲
-  Stage 1            Stage 2  │            Stage 3      │        Stage 4         Stage 5
- ┌────────┐        ┌────────┐ │ chat+embed ┌─────────┐  │ embed ┌──────────┐   ┌──────────┐
- │ agree- │  →     │ docs + │─┴───────────▶│  RAG    │──┴──────▶│ timeline │ → │  strict  │→ report
- │ ment   │        │ cache  │              │ extract │         │ reconcile│   │  grader  │  (PASS/FAIL
- │ check  │        │(Blob + │              │(Pydantic│         │(amend-   │   │ (6 case  │   + codes)
- │(SQL)   │        │ Search)│              │ outputs)│         │ ments)   │   │  types,  │
- └────────┘        └────────┘              └─────────┘         └──────────┘   │  SQL)    │
-                                                                              └──────────┘
+```mermaid
+flowchart LR
+    Q[POST /audit_contract] --> S1[1 · agreement active?]
+    S1 --> S2[2 · fetch PDFs + cache]
+    S2 --> S3[3 · RAG extract terms]
+    S3 --> S4[4 · amendment timeline]
+    S4 --> S5[5 · SQL rules engine]
+    S5 --> R[PASS / FAIL report + error codes]
+    S2 -. pull .-> BLOB[(Blob Storage)]
+    S3 -. chat + embeddings .-> LLM{{LLM · GitHub Models}}
+    S3 -. vector search .-> SEARCH[(Azure AI Search)]
+    S5 -. ground truth .-> SQLDB[(Azure SQL · facets_sim)]
 ```
 
 1. **Pre-check** — verify the provider agreement is active (`facets_sim.provider_agreement`).

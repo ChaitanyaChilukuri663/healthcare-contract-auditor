@@ -112,6 +112,20 @@ class AuditPipeline:
 
         return AuditResponse(status=report.outcome, report=report)
 
+    async def run_all(self, as_of: date | None = None) -> list[AuditResponse]:
+        """Audit every provider agreement on file (powers the portfolio dashboard)."""
+        agreements = await self._agreements.list_all()
+        responses: list[AuditResponse] = []
+        for agreement in agreements:
+            request = AuditRequest(
+                provider_npi=agreement.provider_npi,
+                state=agreement.state,
+                lob=agreement.lob,
+                contract_id=agreement.contract_id,
+            )
+            responses.append(await self.run(request, as_of=as_of))
+        return responses
+
     def _early_fail(
         self,
         agreement: ProviderAgreement,
