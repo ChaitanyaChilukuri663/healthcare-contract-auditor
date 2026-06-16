@@ -11,6 +11,26 @@ so there is no hallucination risk on regulated dollar figures.
 > Portfolio project. Built from public CMS data and a generic architectural pattern.
 > Sample contracts under `data/contracts/` are **synthetic** and clearly labelled.
 
+## Demo
+
+> 📸 _Add a screenshot or GIF of the Streamlit UI here for your portfolio/LinkedIn — save it
+> as `docs/demo.png`, then uncomment the next line._
+<!-- ![Streamlit demo — pick a provider, get a PASS/FAIL report](docs/demo.png) -->
+
+**Deployed as one Docker container on Azure App Service** — Streamlit is the UI framework,
+App Service is the host (it's a single app, not two). Full steps in [SETUP.md](SETUP.md) §5.
+
+## Try it locally (3 steps)
+
+```powershell
+# 1. create + activate a virtual env  (macOS/Linux: source .venv/bin/activate)
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+# 2. install deps, then put your GITHUB_TOKEN in the new .env
+pip install -r requirements.txt; Copy-Item .env.example .env
+# 3. launch the demo UI  (or: uvicorn app:app --reload  for the JSON API at /docs)
+streamlit run streamlit_app.py
+```
+
 ## Architecture — a 5-stage pipeline behind `POST /audit_contract`
 
 ```
