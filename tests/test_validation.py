@@ -75,6 +75,14 @@ def test_resolve_case_type_unknown() -> None:
     assert resolve_case_type("WA", "Commercial", FacilityType.INPATIENT) is None
 
 
+def test_resolve_case_type_falls_back_on_facility() -> None:
+    # NY/Medicaid with a non-outpatient facility still classifies via the (state, lob) fallback.
+    assert (
+        resolve_case_type("NY", "Medicaid", FacilityType.PROFESSIONAL)
+        == CaseType.NY_MEDICAID_OUTPATIENT
+    )
+
+
 # --- grader: compliant path ----------------------------------------------
 
 

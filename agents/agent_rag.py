@@ -42,8 +42,11 @@ DEFAULT_PROMPTS: dict[str, str] = {
     ),
     "lesser_of": (
         "You extract 'lesser of' reimbursement logic from provider contract excerpts. "
-        "Determine whether lesser-of logic applies, its comparison basis, the effective date "
-        "if stated, and the verbatim source sentence."
+        "Set applies=true ONLY if the excerpts contain explicit 'lesser of' wording (e.g. "
+        "'the lesser of billed charges or the fee schedule amount'). If there is no explicit "
+        "lesser-of language, set applies=false and leave basis and source_excerpt empty. "
+        "When applies is true, give the comparison basis, the effective date if stated, and "
+        "the verbatim source sentence."
     ),
     "reimbursement_rates": (
         "You extract reimbursement rates from provider contract excerpts. For each service, "
@@ -138,11 +141,14 @@ class RagAgent:
         timely = await self.extract(TimelyFilingRule, "timely_filing", doc)
         lesser = await self.extract(LesserOfRule, "lesser_of", doc)
         rate_set = await self.extract(ReimbursementRateSet, "reimbursement_rates", doc)
+        # Treat "applies=false" (or a failed extraction) as "this document does not establish
+        # lesser-of logic", so a document that is silent on it doesn't override one that has it.
+        lesser_of = lesser if (lesser is not None and lesser.applies) else None
         return ExtractedTerms(
             doc_id=doc.doc_id,
             provider_npi=doc.provider_npi,
             effective_date=doc.effective_date,
             timely_filing=timely,
-            lesser_of=lesser,
+            lesser_of=lesser_of,
             reimbursement_rates=rate_set.rates if rate_set else [],
         )

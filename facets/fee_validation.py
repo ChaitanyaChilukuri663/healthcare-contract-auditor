@@ -35,9 +35,29 @@ CASE_TYPE_MAP: dict[tuple[str, str, FacilityType], CaseType] = {
 }
 
 
+# Fallback when facility can't be inferred specifically: pick the canonical case type
+# for the (state, lob) pair so we still classify the contract.
+FALLBACK_CASE_TYPE: dict[tuple[str, str], CaseType] = {
+    ("TX", "medicare"): CaseType.TX_MEDICARE_PROFESSIONAL,
+    ("FL", "medicare"): CaseType.FL_MEDICARE_PROFESSIONAL,
+    ("CA", "medicare"): CaseType.CA_MEDICARE_OUTPATIENT,
+    ("NY", "medicaid"): CaseType.NY_MEDICAID_OUTPATIENT,
+    ("TX", "medicaid"): CaseType.TX_MEDICAID_PROFESSIONAL,
+}
+
+
 def resolve_case_type(state: str, lob: str, facility: FacilityType) -> CaseType | None:
-    """Map (state, lob, facility) to one of the 6 validation case types."""
-    return CASE_TYPE_MAP.get((state.strip().upper(), lob.strip().lower(), facility))
+    """Map (state, lob, facility) to a validation case type.
+
+    Tries the exact (state, lob, facility) first, then falls back to the canonical case
+    type for the (state, lob) pair so contracts without a clear facility still classify.
+    """
+    state_key = state.strip().upper()
+    lob_key = lob.strip().lower()
+    exact = CASE_TYPE_MAP.get((state_key, lob_key, facility))
+    if exact is not None:
+        return exact
+    return FALLBACK_CASE_TYPE.get((state_key, lob_key))
 
 
 def _fail(

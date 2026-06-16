@@ -13,7 +13,13 @@ from db.repository import DocCacheRepository, PromptRepository
 from document_extraction.blob_store import BlobStore
 from document_extraction.pdf_ingest import PdfIngestor, chunk_text, sha256_hex
 from document_extraction.search_index import SearchIndex
-from models import DocumentMeta, DocumentType, TimelyFilingRule
+from models import (
+    DocumentMeta,
+    DocumentType,
+    LesserOfRule,
+    ReimbursementRateSet,
+    TimelyFilingRule,
+)
 
 # --- chunking -------------------------------------------------------------
 
@@ -154,3 +160,30 @@ async def test_extract_returns_none_on_llm_failure(mocker: MockerFixture) -> Non
     )
     result = await agent.extract(TimelyFilingRule, "timely_filing", _doc())
     assert result is None
+
+
+async def test_extract_terms_drops_inapplicable_lesser_of(mocker: MockerFixture) -> None:
+    # A document that says lesser-of does NOT apply must not record a lesser-of rule,
+    # so it can't override another document that does establish it.
+    agent = _agent(FakeCacheRepo())
+    timely = TimelyFilingRule(days_to_file=90, effective_date=date(2023, 1, 1), source_excerpt="x")
+    mocker.patch.object(
+        agent,
+        "extract",
+        new=AsyncMock(side_effect=[timely, LesserOfRule(applies=False), ReimbursementRateSet()]),
+    )
+    terms = await agent.extract_terms(_doc())
+    assert terms.lesser_of is None
+    assert terms.timely_filing == timely
+
+
+async def test_extract_terms_keeps_applicable_lesser_of(mocker: MockerFixture) -> None:
+    agent = _agent(FakeCacheRepo())
+    lesser = LesserOfRule(applies=True, basis="lesser of billed or fee", source_excerpt="...")
+    mocker.patch.object(
+        agent,
+        "extract",
+        new=AsyncMock(side_effect=[None, lesser, ReimbursementRateSet()]),
+    )
+    terms = await agent.extract_terms(_doc())
+    assert terms.lesser_of == lesser

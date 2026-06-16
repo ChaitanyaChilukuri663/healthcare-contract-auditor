@@ -205,12 +205,17 @@ class LesserOfRule(BaseModel):
 
     applies: bool = Field(description="Whether lesser-of logic applies to this contract.")
     basis: str = Field(
-        description="The comparison basis, e.g. 'lesser of billed charges or fee schedule'.",
+        default="",
+        description="The comparison basis, e.g. 'lesser of billed charges or fee schedule'. "
+        "Empty when applies is false.",
     )
     effective_date: date | None = Field(
         default=None, description="Date this rule becomes effective, if stated."
     )
-    source_excerpt: str = Field(description="Verbatim contract text supporting this rule.")
+    source_excerpt: str = Field(
+        default="",
+        description="Verbatim contract text supporting this rule. Empty when applies is false.",
+    )
 
 
 class ReimbursementRate(BaseModel):
