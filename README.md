@@ -30,8 +30,8 @@ finding traced to the exact contract clause and the benchmark it was checked aga
 Two views — a **single-contract audit** and a **portfolio dashboard** (compliance %,
 violations by error code, estimated $ exposure, and items flagged for human review).
 
-
-![Single audit](docs/demo.png)
+![Provider A audit](docs/demo1.png)
+![Provider B audit](docs/demo2.png)
 ![Portfolio dashboard](docs/dashboard.png)
 
 
