@@ -27,15 +27,16 @@ finding traced to the exact contract clause and the benchmark it was checked aga
 
 ## Demo
 
-Two views: a **single-contract audit** and a **portfolio dashboard**.
+Two views — a **single-contract audit** and a **portfolio dashboard** (compliance %,
+violations by error code, estimated $ exposure, and items flagged for human review).
 
-> 📸 _Add screenshots/GIFs for your portfolio/LinkedIn — save as `docs/demo.png` (single
-> audit) and `docs/dashboard.png` (dashboard), then uncomment the lines below._
-<!-- ![Single audit — pick a provider, get a PASS/FAIL report](docs/demo.png) -->
-<!-- ![Portfolio dashboard — compliance rate, violations, $ exposure](docs/dashboard.png) -->
+<!-- Screenshots: add docs/demo.png and docs/dashboard.png, then uncomment these:
+![Single audit](docs/demo.png)
+![Portfolio dashboard](docs/dashboard.png)
+-->
 
-**Deployed as one Docker container on Azure App Service** — Streamlit is the UI framework,
-App Service is the host (a single app, not two). Full steps in [SETUP.md](SETUP.md) §5.
+Runs locally with Streamlit (UI) or Uvicorn (JSON API), and is containerized via the
+included `Dockerfile` for Azure App Service — see [SETUP.md](SETUP.md) §5.
 
 ## Try it locally (3 steps)
 
@@ -134,7 +135,7 @@ app.py                     FastAPI routes + lifespan (builds the pipeline)
 streamlit_app.py           Streamlit demo UI (runs the pipeline, shows the report)
 pipeline.py                5-stage orchestration (AuditPipeline)
 models.py                  Pydantic v2 schemas (extraction, timeline, report, error codes)
-config.py                  Settings (pydantic-settings), version, secret resolution
+config.py                  Settings (pydantic-settings), version, .env loading
 agents/
   llm_client.py            Provider abstraction: chat_structured() + embed()  ← only LLM entry point
   agent_rag.py             RAG retrieval, DB prompt registry, response cache, extraction
@@ -170,11 +171,12 @@ tests/                     pytest mirrors the source tree
 | `pytest` (52 unit tests, mocked Azure/LLM)         | ✅ pass |
 | App boots, `/health` returns the right shape       | ✅ pass |
 | Streamlit UI imports, synthetic PDFs parse         | ✅ pass |
-| Extraction-accuracy eval (`python -m evals.run_eval`) | ▶ run it to generate `evals/results.md` |
-| Live LLM call, AI Search, Blob, Azure SQL, deploy  | ⏳ needs your token + Azure subscription (see SETUP.md) |
+| Extraction-accuracy eval ([results](evals/results.md)) | ✅ 86% overall (numeric fields 100%) |
+| Live LLM, AI Search, Blob, Azure SQL (end-to-end audit) | ✅ verified on Azure |
+| Azure App Service container deployment             | ⏳ optional (see [SETUP.md](SETUP.md) §5) |
 
-## Environment notes
+## Notes
 
-- **Python**: targets **3.12** (ruff pinned to `py312`); runs fine on 3.12 or 3.13.
-- **Behind a corporate proxy?** `pip` works as-is; the LLM HTTP client verifies against the
-  OS trust store.
+- **Python** 3.12 target (ruff pinned to `py312`); runs on 3.12 or 3.13.
+- The LLM HTTP client verifies against the OS trust store, so it works behind
+  TLS-inspecting proxies.

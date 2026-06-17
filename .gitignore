@@ -20,3 +20,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Private prep notes (kept local, not in the public repo)
+PROJECT_GUIDE.md
