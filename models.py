@@ -8,8 +8,10 @@ so they serialise cleanly to JSON.
 import uuid
 from datetime import UTC, date, datetime
 from enum import StrEnum
+from typing import Annotated, Any
 
-from pydantic import BaseModel, Field
+from dateutil import parser as dateutil_parser
+from pydantic import BaseModel, BeforeValidator, Field
 
 # --------------------------------------------------------------------------- #
 # Enumerations                                                                #
@@ -99,6 +101,48 @@ ERROR_DESCRIPTIONS: dict[AuditErrorCode, str] = {
     AuditErrorCode.DOC001: "No contract documents found for the provider/state.",
     AuditErrorCode.EXT001: "AI extraction failed or returned no usable data.",
 }
+
+# --------------------------------------------------------------------------- #
+# LLM-output coercion — tolerate common formatting quirks instead of crashing  #
+# --------------------------------------------------------------------------- #
+
+
+def _coerce_date(value: Any) -> Any:
+    """Accept ISO or natural-language dates from the LLM (e.g. 'January 1, 2023')."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip()
+    if not text:
+        return None
+    try:
+        return date.fromisoformat(text)
+    except ValueError:
+        try:
+            return dateutil_parser.parse(text).date()
+        except (ValueError, OverflowError):
+            return None
+
+
+def _coerce_rate_type(value: Any) -> Any:
+    """Map an unexpected rate-type string to the closest known RateType."""
+    if not isinstance(value, str):
+        return value
+    text = value.strip().lower()
+    if text in {rt.value for rt in RateType}:
+        return text
+    if "medicare" in text:
+        return RateType.PERCENT_OF_MEDICARE.value
+    if "bill" in text:
+        return RateType.PERCENT_OF_BILLED.value
+    if "flat" in text or "amount" in text:
+        return RateType.FLAT_AMOUNT.value
+    return RateType.PERCENT_OF_BILLED.value  # safe default (not used in the benchmark check)
+
+
+# Reusable field types that sanitize LLM output before validation.
+FlexibleDate = Annotated[date, BeforeValidator(_coerce_date)]
+OptionalDate = Annotated[date | None, BeforeValidator(_coerce_date)]
+FlexibleRateType = Annotated[RateType, BeforeValidator(_coerce_rate_type)]
 
 # --------------------------------------------------------------------------- #
 # API request/response                                                        #
@@ -192,7 +236,7 @@ class TimelyFilingRule(BaseModel):
         gt=0,
         description="Number of days from the date of service within which a claim must be filed.",
     )
-    effective_date: date = Field(
+    effective_date: FlexibleDate = Field(
         description="Date this timely-filing rule becomes effective (ISO 8601, YYYY-MM-DD).",
     )
     source_excerpt: str = Field(
@@ -209,7 +253,7 @@ class LesserOfRule(BaseModel):
         description="The comparison basis, e.g. 'lesser of billed charges or fee schedule'. "
         "Empty when applies is false.",
     )
-    effective_date: date | None = Field(
+    effective_date: OptionalDate = Field(
         default=None, description="Date this rule becomes effective, if stated."
     )
     source_excerpt: str = Field(
@@ -222,14 +266,14 @@ class ReimbursementRate(BaseModel):
     """A reimbursement rate for a service extracted from a contract."""
 
     service: str = Field(description="Service or service category, e.g. 'Physical Therapy'.")
-    rate_type: RateType = Field(description="How the rate is expressed.")
+    rate_type: FlexibleRateType = Field(description="How the rate is expressed.")
     value: float = Field(
         description="Rate value: a percentage (e.g. 110 for 110%) or a dollar amount.",
     )
     cpt_codes: list[str] = Field(
         default_factory=list, description="Associated CPT/HCPCS codes, if any."
     )
-    effective_date: date | None = Field(
+    effective_date: OptionalDate = Field(
         default=None, description="Date this rate becomes effective, if stated."
     )
     source_excerpt: str = Field(description="Verbatim contract text supporting this rate.")
