@@ -24,7 +24,7 @@ PROVIDER_AGREEMENTS: list[tuple[str, str, str, str, date, date | None]] = [
 
 # (state, lob, days_to_file)
 FILING_RULES: list[tuple[str, str, int]] = [
-    ("TX", "Medicare", 90),
+    ("TX", "Medicare", 120),
     ("FL", "Medicare", 90),
     ("CA", "Medicare", 95),
     ("NY", "Medicaid", 90),

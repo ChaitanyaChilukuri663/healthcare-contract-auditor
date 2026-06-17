@@ -14,7 +14,7 @@ GO
 
 DELETE FROM facets_sim.filing_rule;
 INSERT INTO facets_sim.filing_rule (state, lob, days_to_file) VALUES
-    ('TX', 'Medicare', 90),
+    ('TX', 'Medicare', 120),
     ('FL', 'Medicare', 90),
     ('CA', 'Medicare', 95),
     ('NY', 'Medicaid', 90),
