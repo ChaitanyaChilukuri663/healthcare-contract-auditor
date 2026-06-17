@@ -30,10 +30,10 @@ finding traced to the exact contract clause and the benchmark it was checked aga
 Two views — a **single-contract audit** and a **portfolio dashboard** (compliance %,
 violations by error code, estimated $ exposure, and items flagged for human review).
 
-<!-- Screenshots: add docs/demo.png and docs/dashboard.png, then uncomment these:
+
 ![Single audit](docs/demo.png)
 ![Portfolio dashboard](docs/dashboard.png)
--->
+
 
 Runs locally with Streamlit (UI) or Uvicorn (JSON API), and is containerized via the
 included `Dockerfile` for Azure App Service — see [SETUP.md](SETUP.md) §5.
