@@ -162,6 +162,36 @@ async def test_extract_returns_none_on_llm_failure(mocker: MockerFixture) -> Non
     assert result is None
 
 
+# --- upload demo: extract_terms_from_text (no Azure) ----------------------
+
+
+async def test_extract_terms_from_text_aggregates(mocker: MockerFixture) -> None:
+    from agents.agent_rag import extract_terms_from_text
+
+    timely = TimelyFilingRule(days_to_file=90, effective_date=date(2023, 1, 1), source_excerpt="x")
+    lesser = LesserOfRule(applies=True, basis="lesser of", source_excerpt="y")
+    mocker.patch(
+        "agents.llm_client.chat_structured",
+        new=AsyncMock(side_effect=[timely, lesser, ReimbursementRateSet()]),
+    )
+    terms = await extract_terms_from_text("some contract text")
+    assert terms.timely_filing == timely
+    assert terms.lesser_of == lesser
+
+
+async def test_extract_terms_from_text_drops_false_lesser_of(mocker: MockerFixture) -> None:
+    from agents.agent_rag import extract_terms_from_text
+
+    timely = TimelyFilingRule(days_to_file=90, effective_date=date(2023, 1, 1), source_excerpt="x")
+    mocker.patch(
+        "agents.llm_client.chat_structured",
+        new=AsyncMock(side_effect=[timely, LesserOfRule(applies=False), ReimbursementRateSet()]),
+    )
+    terms = await extract_terms_from_text("text")
+    assert terms.lesser_of is None
+    assert terms.timely_filing == timely
+
+
 async def test_extract_terms_drops_inapplicable_lesser_of(mocker: MockerFixture) -> None:
     # A document that says lesser-of does NOT apply must not record a lesser-of rule,
     # so it can't override another document that does establish it.

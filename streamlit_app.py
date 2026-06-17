@@ -1,19 +1,31 @@
 """Streamlit demo UI for the contract auditor.
 
-Two views (sidebar): a single-contract audit, and a portfolio dashboard that audits every
-contract on file and shows aggregate compliance. Run locally:  streamlit run streamlit_app.py
-Needs the same AZURE_* / GITHUB_TOKEN settings as the API (see SETUP.md).
+Three sidebar views: **Upload a contract** (LLM extraction only — needs just the LLM token,
+no Azure), a single-contract audit, and a portfolio dashboard (the latter two use the Azure
+backend). Run locally:  streamlit run streamlit_app.py   (see SETUP.md for configuration).
 """
 
 import asyncio
+import os
 
 import streamlit as st
 
+from agents.agent_rag import extract_terms_from_text
 from agents.llm_client import get_active_provider
 from config import ConfigurationError, get_settings, get_version
-from models import AuditOutcome, AuditRequest, AuditResponse, PortfolioSummary
+from document_extraction.pdf_ingest import extract_pages
+from models import AuditOutcome, AuditRequest, AuditResponse, ExtractedTerms, PortfolioSummary
 from pipeline import build_default_pipeline
 from reporting import summarize_portfolio
+
+# On Streamlit Cloud, config is provided via st.secrets; mirror it into the environment so
+# the standard Settings / llm_client (which read os.environ) pick it up. Locally this is a
+# no-op and the .env file is used instead.
+try:
+    for _secret_key, _secret_value in st.secrets.items():
+        os.environ.setdefault(_secret_key, str(_secret_value))
+except Exception:
+    pass
 
 # Demo providers seeded by db/seed_data.sql.
 DEMO_PROVIDERS = {
@@ -167,6 +179,77 @@ def _dashboard_view() -> None:
         _render_dashboard(summary, responses)
 
 
+def _render_terms(terms: ExtractedTerms) -> None:
+    st.subheader("Extracted terms")
+    tf = terms.timely_filing
+    if tf is not None:
+        eff = f" · effective {tf.effective_date}" if tf.effective_date else ""
+        st.markdown(f"**Timely filing:** {tf.days_to_file} days{eff}")
+        if tf.source_excerpt:
+            st.caption(tf.source_excerpt)
+    else:
+        st.markdown("**Timely filing:** _not found_")
+
+    lo = terms.lesser_of
+    if lo is not None:
+        st.markdown(
+            f"**Lesser-of logic:** applies — {lo.basis or 'lesser of billed vs fee schedule'}"
+        )
+        if lo.source_excerpt:
+            st.caption(lo.source_excerpt)
+    else:
+        st.markdown("**Lesser-of logic:** _not found_")
+
+    if terms.reimbursement_rates:
+        st.markdown("**Reimbursement rates:**")
+        st.dataframe(
+            [
+                {
+                    "service": r.service,
+                    "type": r.rate_type.value,
+                    "value": r.value,
+                    "cpt": ", ".join(r.cpt_codes),
+                }
+                for r in terms.reimbursement_rates
+            ],
+            hide_index=True,
+        )
+    else:
+        st.markdown("**Reimbursement rates:** _none found_")
+
+    st.caption(
+        "Extraction only. The full pipeline also validates these against CMS benchmarks with a "
+        "deterministic rules engine (see the other views and the README)."
+    )
+
+
+def _upload_view() -> None:
+    st.write(
+        "Upload a provider-contract PDF and the AI extracts the key terms — timely-filing "
+        "window, lesser-of logic, and reimbursement rates. No account needed."
+    )
+    uploaded = st.file_uploader("Contract PDF", type=["pdf"])
+    if uploaded is not None and st.button("Extract terms", type="primary"):
+        with st.spinner("Reading the contract and extracting terms…"):
+            try:
+                text = "\n".join(extract_pages(uploaded.getvalue()))
+            except Exception as exc:  # malformed / unreadable PDF
+                st.error(f"Couldn't read that PDF: {exc}")
+                return
+            if not text.strip():
+                st.warning("No text found — is this a scanned image rather than a text PDF?")
+                return
+            try:
+                terms = asyncio.run(extract_terms_from_text(text))
+            except Exception as exc:  # LLM / network / rate limit
+                st.error(
+                    "Extraction failed — the free demo token may be rate-limited (150/day). "
+                    f"Please try again later. ({exc})"
+                )
+                return
+        _render_terms(terms)
+
+
 def main() -> None:
     st.set_page_config(page_title="Healthcare Contract Auditor", page_icon="📄", layout="wide")
     st.title("📄 Healthcare Contract Auditor")
@@ -176,8 +259,12 @@ def main() -> None:
     )
     st.caption(f"LLM provider: **{get_active_provider()}** · version {get_version()}")
 
-    view = st.sidebar.radio("View", ["Single contract audit", "Portfolio dashboard"])
-    if view == "Portfolio dashboard":
+    view = st.sidebar.radio(
+        "View", ["Upload a contract", "Single contract audit", "Portfolio dashboard"]
+    )
+    if view == "Upload a contract":
+        _upload_view()
+    elif view == "Portfolio dashboard":
         _dashboard_view()
     else:
         _single_audit_view()

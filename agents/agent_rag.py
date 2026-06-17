@@ -152,3 +152,44 @@ class RagAgent:
             lesser_of=lesser_of,
             reimbursement_rates=rate_set.rates if rate_set else [],
         )
+
+
+async def extract_terms_from_text(text: str) -> ExtractedTerms:
+    """Extract contract terms straight from raw text via the LLM.
+
+    No retrieval, cache, or Azure — only the provider abstraction. Powers the lightweight
+    upload demo (anyone can paste/upload a contract). A field that fails extraction is omitted.
+    """
+    body = f"Contract text:\n{text}\n\nExtract the requested information as structured data."
+
+    def _messages(prompt_name: str) -> list[dict]:
+        return [
+            {"role": "system", "content": DEFAULT_PROMPTS[prompt_name]},
+            {"role": "user", "content": body},
+        ]
+
+    timely: TimelyFilingRule | None = None
+    lesser: LesserOfRule | None = None
+    rate_set: ReimbursementRateSet | None = None
+    try:
+        timely = await llm_client.chat_structured(_messages("timely_filing"), TimelyFilingRule)
+    except LLMExtractionError:
+        logger.warning("Upload demo: timely-filing extraction failed")
+    try:
+        lesser = await llm_client.chat_structured(_messages("lesser_of"), LesserOfRule)
+    except LLMExtractionError:
+        logger.warning("Upload demo: lesser-of extraction failed")
+    try:
+        rate_set = await llm_client.chat_structured(
+            _messages("reimbursement_rates"), ReimbursementRateSet
+        )
+    except LLMExtractionError:
+        logger.warning("Upload demo: reimbursement-rate extraction failed")
+
+    return ExtractedTerms(
+        doc_id="upload",
+        provider_npi="upload",
+        timely_filing=timely,
+        lesser_of=lesser if (lesser is not None and lesser.applies) else None,
+        reimbursement_rates=rate_set.rates if rate_set else [],
+    )
