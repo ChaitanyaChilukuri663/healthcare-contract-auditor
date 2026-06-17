@@ -60,7 +60,7 @@ pytest -m live                           # live LLM smoke test (uses your GITHUB
 
 ---
 
-## 5. Deploy to Azure (student subscription)
+## 5. Deploy to Azure
 
 Use **Azure Cloud Shell** (the `>_` icon in the portal) for the `az`/`sqlcmd` steps — it has
 everything preinstalled and you're already logged in. First set a **$20 budget alert**, then
@@ -68,7 +68,7 @@ everything preinstalled and you're already logged in. First set a **$20 budget a
 
 > **Why a Docker container?** `pyodbc` needs *ODBC Driver 18*, which isn't in App Service's
 > default Python image. The included **Dockerfile** installs it, so we deploy a container —
-> this is the reliable path and gets Docker + App Service onto your resume.
+> this is the reliable path (and a common production deployment pattern).
 
 ### 5a. Create the resources (free where possible)
 ```bash
@@ -108,7 +108,7 @@ az webapp create -g $RG -p $PFX-plan -n $PFX-web \
   --deployment-container-image-name ${PFX}acr.azurecr.io/auditor:latest
 az webapp config appsettings set -g $RG -n $PFX-web --settings WEBSITES_PORT=8000
 ```
-> 💲 B1 + ACR Basic are ~**$13–18/mo** — well inside your $96, and you can stop all charges
+> 💲 B1 + ACR Basic are ~**$13–18/mo** — well within the Azure free/student credit, and you can stop all charges
 > with `az group delete -n $RG` when you're done demoing. (A strictly-$0 route — F1 Python +
 > a startup script that installs the driver — exists but is fiddly; the container is reliable.)
 
